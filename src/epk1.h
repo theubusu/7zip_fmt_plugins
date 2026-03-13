@@ -4,10 +4,10 @@
 namespace Epk1 {
     
     struct CItem {
-        AString Name;
-        UInt32 Offset;
-        UInt32 Size;
-        AString Version;
+        AString name;
+        UInt32 offset;
+        UInt32 size;
+        AString version;
     };
 
     NWindows::NCOM::CPropVariant GetProperty(PROPID propId);
@@ -18,16 +18,16 @@ namespace Epk1 {
 
     #pragma pack(push, 1)
     struct CommonHeader {
-        Byte   MagicBytes[4];
-        UInt32 DataSize;
-        UInt32 PakCount;
+        Byte   magicBytes[4];
+        UInt32 dataSize;
+        UInt32 pakCount;
     };
     #pragma pack(pop)
 
     #pragma pack(push, 1)
     struct PakEntry {
-        UInt32 Offset;
-        UInt32 Size;
+        UInt32 offset;
+        UInt32 size;
     };
     #pragma pack(pop)
 

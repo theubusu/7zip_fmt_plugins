@@ -84,13 +84,13 @@ namespace Epk1 {
         CommonHeader header;
         memcpy(&header, buf, sizeof(header));
 
-        if (memcmp(header.MagicBytes, k_Signature, 4) != 0) {
+        if (memcmp(header.magicBytes, k_Signature, 4) != 0) {
             DBG_LOG("[epk1] fail signature\n");
             return S_FALSE;
         }
 
-        DBG_LOG("[epk1] dataSize %i\n", header.DataSize);
-        DBG_LOG("[epk1] pakCount %u\n", header.PakCount);
+        DBG_LOG("[epk1] dataSize %i\n", header.dataSize);
+        DBG_LOG("[epk1] pakCount %u\n", header.pakCount);
 
         //the offset of first entry which appears after common header used as header size
         _headerSize = GetUi32(buf + sizeof(CommonHeader));
@@ -137,10 +137,10 @@ namespace Epk1 {
             AString pakVersion(pakVersionB);
 
             CItem item;
-            item.Name = entryName;
-            item.Offset = offset + (UInt32)kPakHdrSize;
-            item.Size = size - kPakHdrSize;
-            item.Version = pakVersion;
+            item.name = entryName;
+            item.offset = offset + (UInt32)kPakHdrSize;
+            item.size = size - kPakHdrSize;
+            item.version = pakVersion;
             _items.Add(item);
             DBG_LOG("[epk1] create item %i - name %s, offset %i, size %i, version %s\n", i, name, item.Offset, item.Size, pakVersionB);
         }
@@ -189,7 +189,7 @@ namespace Epk1 {
         UInt32 i;
         for (i = 0; i < numItems; i++) {
             const CItem& item = _items[allFilesMode ? i : indices[i]];
-            totalSize += item.Size;
+            totalSize += item.size;
         }
         DBG_LOG("[epk1] total size: %llu\n", totalSize);
         extractCallback->SetTotal(totalSize);
@@ -216,7 +216,7 @@ namespace Epk1 {
             const UInt32 index = allFilesMode ? i : indices[i];
             const CItem& item = _items[index];
             RINOK(extractCallback->GetStream(index, &realOutStream, askMode))
-            currentTotalSize += item.Size;
+            currentTotalSize += item.size;
 
             if (!testMode && !realOutStream) {
                 continue;
@@ -228,11 +228,11 @@ namespace Epk1 {
             }
             bool isOk = true;
 
-            RINOK(InStream_SeekSet(_inStream, item.Offset))
-            streamSpec->Init(item.Size);
+            RINOK(InStream_SeekSet(_inStream, item.offset))
+            streamSpec->Init(item.size);
 
             RINOK(copyCoder->Code(fileStream, realOutStream, NULL, NULL, progress))
-            isOk = (copyCoderSpec->TotalSize == item.Size);
+            isOk = (copyCoderSpec->TotalSize == item.size);
             realOutStream.Release();
             
             RINOK(extractCallback->SetOperationResult(
@@ -287,20 +287,20 @@ namespace Epk1 {
 
         switch (propID) {
             case kpidPath:
-                Utf8StringToProp(item.Name, prop);
+                Utf8StringToProp(item.name, prop);
                 break;
             case kpidIsDir:
                 prop = false;
                 break;
             case kpidSize:
             case kpidPackSize:
-                prop = item.Size;
+                prop = item.size;
                 break;
             case kpidOffset:
-                prop = item.Offset;
+                prop = item.offset;
                 break;
             case kpidComment:
-                Utf8StringToProp(item.Version, prop);
+                Utf8StringToProp(item.version, prop);
                 break;
         }
 
@@ -316,7 +316,7 @@ namespace Epk1 {
         COM_TRY_BEGIN
 
         const CItem& item = _items[index];
-        return CreateLimitedInStream(_inStream, item.Offset, item.Size, stream);
+        return CreateLimitedInStream(_inStream, item.offset, item.size, stream);
 
         COM_TRY_END
     }
@@ -341,7 +341,7 @@ namespace Epk1 {
         "epk1",                 // format name
         "epk",                  // file extension
         NULL,                   // ?ae
-        0xA3,                   // unique id for GUID
+        0xA1,                   // unique id for GUID
         k_Signature,            // file magic signature
         0,                      // offset of signature
         0,                      // arc flags

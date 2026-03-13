@@ -1,6 +1,7 @@
 //DLL Exports
 
 #include "epk1.h"
+#include "epk2.h"
 
 #include "util.h"
 #include <cassert>
