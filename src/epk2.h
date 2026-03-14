@@ -22,12 +22,12 @@ namespace Epk2 {
 
     #pragma pack(push, 1)
     struct Header {
-        Byte   epakMagicBytes[4];
-        UInt32 dataSize;
-        UInt32 pakCount;
-        Byte   epk2MagicBytes[4];
-        char   version[4];
-        char   otaID[32];
+        Byte    epakMagicBytes[4];
+        UInt32  dataSize;
+        UInt32  pakCount;
+        Byte    epk2MagicBytes[4];
+        uint8_t version[4];
+        char    otaID[32];
 
     };
     #pragma pack(pop)

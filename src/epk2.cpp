@@ -27,7 +27,7 @@ namespace Epk2 {
         CMyComPtr<IInStream> _inStream;
         CObjectVector<CItem> _items;
         UInt64 _headerSize;
-        char _version[4];
+        uint8_t _version[4];
         std::string _otaID;
         uint8_t _key[16];
 
@@ -280,7 +280,7 @@ namespace Epk2 {
 
                 if (memcmp(pakHdr.pakMagic, pakMagic, 4) != 0) {
                     DBG_LOG("[epk2] fail pak signature\n");
-                    return S_FALSE;
+                    isOk = false;
                 }
 
                 DBG_LOG("[epk2] pak %.*s - segment: %i/%i, seg.size: %i\n", 4, pakHdr.pakName, pakHdr.segmentIndex, pakHdr.segmentCount, pakHdr.segmentSize);
@@ -366,6 +366,8 @@ namespace Epk2 {
                 prop = false;
                 break;
             case kpidSize:
+                prop = item.size - (item.segmentCount * sizeof(PakHeader));
+                break;
             case kpidPackSize:
                 prop = item.size;
                 break;
