@@ -32,6 +32,18 @@ namespace Epk3 {
         uint8_t _version[4];
         std::string _otaID;
         uint8_t _key[16];
+        UInt32 _signatureSize;
+        bool _isNewType;
+
+        AString _platformVersion;
+        AString _sdkVersion;
+
+        //exhdr 
+        AString _updateType;
+        AString _encryptType;
+        float  _updatePlatformVersion;
+        float  _compatibleMinimumVersion;
+        int    _needToCheckCompatibleVersion;
 
         HRESULT Open2(IInStream* stream);
     };
@@ -40,6 +52,16 @@ namespace Epk3 {
     static const Byte kArcProps[] = {
         kpidHeadersSize,
         kpidComment,        //used for OTAID + ver
+
+        //CUSTOM
+        cIsNewType,
+        cplatformVersion,
+        cSdkVersion,
+        cencryptType,
+        cupdateType,
+        cupdatePlatformVersion,
+        ccompatibleMinimumVersion,
+        cneedToCheckCompatibleVersion,
     };
     IMP_IInArchive_ArcProps;
 
@@ -81,17 +103,13 @@ namespace Epk3 {
     }
 
     HRESULT CHandler::Open2(IInStream* stream) {
-        //skip header signature
-        RINOK(InStream_SeekSet(stream, SIGNATURE_SIZE));
+        //try to find key for old type (128 signature)
+        Byte hdrBuf[MAX_HDR_SIZE];
 
-        // read header
-        const size_t headerReadSize = 1584; //max header size
-        Byte hdrBuf[headerReadSize];
+        RINOK(InStream_SeekSet(stream, 128));
+        size_t headerReadSize = MAX_HDR_SIZE - 128;
         RINOK(ReadStream_FALSE(stream, hdrBuf, headerReadSize));
 
-        Header header;
-
-        //try to find key 
         const uint8_t* key = tryFindAESkey(hdrBuf, headerReadSize, epk3_Magic, sizeof(epk3_Magic), 0);
         if (key) {
             DBG_LOG("[epk3] matched key: ");
@@ -99,17 +117,38 @@ namespace Epk3 {
                 DBG_LOG("%02X ", key[i]);
             }    
             DBG_LOG("\n");
+            _signatureSize = 128;
+            _isNewType = false;
             memcpy(_key, key, 16);
-
-            //decrypt header
-            decryptAES128ecbUnalign(hdrBuf, headerReadSize, _key);
-            memcpy(&header, hdrBuf, sizeof(header));
-
         } else {
-            //no key, return false
-            DBG_LOG("[epk3] not found key...\n");
-            return S_FALSE;
-        } 
+            //no key found for old type (128 signature), now try new type (256 signature)
+            RINOK(InStream_SeekSet(stream, 256));
+            headerReadSize = MAX_HDR_SIZE - 256;
+            RINOK(ReadStream_FALSE(stream, hdrBuf, headerReadSize));
+
+            key = tryFindAESkey(hdrBuf, headerReadSize, epk3_Magic, sizeof(epk3_Magic), 0);
+            if (key) {
+                DBG_LOG("[epk3] matched key: ");
+                for (int i = 0; i < 16; i++) {
+                    DBG_LOG("%02X ", key[i]);
+                }    
+                DBG_LOG("\n");
+                _signatureSize = 256;
+                _isNewType = true;
+                memcpy(_key, key, 16);
+            } else {
+                //no key found for both types, return false
+                DBG_LOG("[epk3] not found key...\n");
+                return S_FALSE;
+            } 
+        }
+    
+        // ---------------------
+
+        //decrypt header
+        decryptAES128ecbUnalign(hdrBuf, headerReadSize, _key);
+        Header header;
+        memcpy(&header, hdrBuf, sizeof(header));
 
         DBG_LOG("[epk3] version %02x.%02x.%02x.%02x\n", header.version[3], header.version[2], header.version[1], header.version[0]);
         memcpy(_version, header.version, sizeof(_version));
@@ -120,10 +159,54 @@ namespace Epk3 {
 
         DBG_LOG("[epk3] packageInfoSize %i\n", header.packageInfoSize);
 
+        //ex header for new type
+        if (_isNewType) {
+            HeaderNewEx exHeader;
+            memcpy(&exHeader, hdrBuf + sizeof(Header), sizeof(HeaderNewEx));
+
+            char encryptType[7];
+            memcpy(encryptType, exHeader.encryptType, 6);
+            encryptType[6] = '\0';
+            DBG_LOG("[epk3] encryptType %s\n", encryptType);
+            AString aencryptType(encryptType);
+            _encryptType = aencryptType;
+
+            char updateType[7];
+            memcpy(updateType, exHeader.updateType, 6);
+            updateType[6] = '\0';
+            DBG_LOG("[epk3] updateType %s\n", updateType);
+            AString aupdateType(updateType);
+            _updateType = aupdateType;
+
+            DBG_LOG("[epk3] updatePlatformVersion %f\n", exHeader.updatePlatformVersion);
+            _updatePlatformVersion = exHeader.updatePlatformVersion;
+
+            DBG_LOG("[epk3] compatibleMinimumVersion %f\n", exHeader.compatibleMinimumVersion);
+            _compatibleMinimumVersion = exHeader.compatibleMinimumVersion;
+
+            DBG_LOG("[epk3] needToCheckCompatibleVersion %d\n", exHeader.needToCheckCompatibleVersion);
+            _needToCheckCompatibleVersion = exHeader.needToCheckCompatibleVersion;
+        }
+
+        //read platform versions
+        RINOK(InStream_SeekSet(stream, _signatureSize + headerReadSize));
+        Byte verBuf[sizeof(PlatformVersions)];
+        RINOK(ReadStream_FALSE(stream, verBuf, sizeof(PlatformVersions)));
+        PlatformVersions vers;
+        memcpy(&vers, verBuf, sizeof(PlatformVersions));
+
+        DBG_LOG("[epk3] platformVersion %s\n", vers.platformVersion);
+        AString platformVersion(vers.platformVersion);
+        _platformVersion = platformVersion;
+
+        DBG_LOG("[epk3] sdkVersion %s\n", vers.sdkVersion);
+        AString sdkVersion(vers.sdkVersion);
+        _sdkVersion = sdkVersion;
+        
         _items.Clear();
 
         //read and decrypt pkginfo
-        RINOK(InStream_SeekSet(stream, SIGNATURE_SIZE+headerReadSize+36+SIGNATURE_SIZE));
+        RINOK(InStream_SeekSet(stream, _signatureSize + headerReadSize + 36 + _signatureSize));
         std::vector<Byte> pkgInfo(header.packageInfoSize);
         RINOK(ReadStream_FALSE(stream, pkgInfo.data(), header.packageInfoSize));
         decryptAES128ecbUnalign(pkgInfo.data(), header.packageInfoSize, _key);
@@ -135,10 +218,11 @@ namespace Epk3 {
 
         int entryIdx = 0;
         int pakIdx = 0;
-        int offset = SIGNATURE_SIZE+headerReadSize+36+SIGNATURE_SIZE+header.packageInfoSize;
+        int pkgInfoHeaderExtra = _isNewType? 4 : 0;
+        int offset = _signatureSize + headerReadSize + 36 + _signatureSize + header.packageInfoSize;
         while (entryIdx < pkgInfoHeader.packageInfoCount) {
             PkgInfoEntry entry;
-            memcpy(&entry, pkgInfo.data() + sizeof(PkgInfoHeader) + (entryIdx*sizeof(PkgInfoEntry)), sizeof(entry));
+            memcpy(&entry, pkgInfo.data() + sizeof(PkgInfoHeader) + pkgInfoHeaderExtra + (entryIdx*sizeof(PkgInfoEntry)), sizeof(entry));
 
             char name[132];
             memcpy(name, entry.packageName, 128);
@@ -158,10 +242,13 @@ namespace Epk3 {
 
             for (UInt32 segIdx = 0; segIdx < entry.segmentCount; segIdx++) {
                 if (segIdx > 0) {
-                    memcpy(&entry, pkgInfo.data() + sizeof(PkgInfoHeader) + (entryIdx*sizeof(PkgInfoEntry)), sizeof(entry));
+                    memcpy(&entry, pkgInfo.data() + sizeof(PkgInfoHeader) + pkgInfoHeaderExtra + (entryIdx*sizeof(PkgInfoEntry)), sizeof(entry));
                 }
                 DBG_LOG("[epk3] seg %i/%i, size: %i\n", entry.segmentIndex, entry.segmentCount, entry.segmentSize);
-                offset += SIGNATURE_SIZE + entry.segmentSize;
+                offset += _signatureSize + entry.segmentSize;
+                if (_isNewType) {
+                    offset += 4;
+                }
 
                 entryIdx++;
             }
@@ -252,9 +339,12 @@ namespace Epk3 {
                 } else {
                     readSize = item.segmentSize;
                 }
+                if (_isNewType) {
+                    readSize += 4;
+                }
 
-                Byte pakSignature[SIGNATURE_SIZE];
-                RINOK(ReadStream_FALSE(_inStream, pakSignature, SIGNATURE_SIZE));
+                std::vector<Byte> pakSignature(_signatureSize);
+                RINOK(ReadStream_FALSE(_inStream, pakSignature.data(), _signatureSize));
 
                 std::vector<Byte> segmentData(readSize);
                 RINOK(ReadStream_FALSE(_inStream, segmentData.data(), readSize));
@@ -263,8 +353,14 @@ namespace Epk3 {
 
                 //write decrypted segment to output stream
                 UInt32 written;
-                RINOK(realOutStream->Write(segmentData.data(), segmentData.size(), &written));
-                if (written != segmentData.size()) {
+                size_t writeSize = segmentData.size();
+                const Byte* writeData = segmentData.data();
+                if (_isNewType) {
+                    writeData += 4;
+                    writeSize -= 4;
+                }
+                RINOK(realOutStream->Write(writeData, writeSize, &written));
+                if (written != writeSize) {
                     DBG_LOG("[epk3] fail pak written size\n");
                     isOk = false;
                 }
@@ -322,6 +418,49 @@ namespace Epk3 {
                 Utf8StringToProp(comment, prop);
                 break;
             }
+
+            case cIsNewType:
+                prop = _isNewType;
+                break;
+            case cplatformVersion:
+                Utf8StringToProp(_platformVersion, prop);
+                break;
+            case cSdkVersion:
+                Utf8StringToProp(_sdkVersion, prop);
+                break;
+
+            case cencryptType:
+                if (_isNewType) {
+                    Utf8StringToProp(_encryptType, prop);
+                };
+                break;
+            case cupdateType:
+                if (_isNewType) {
+                    Utf8StringToProp(_updateType, prop);
+                };
+                break;
+            case cupdatePlatformVersion:
+                if (_isNewType) {
+                    char buf[10];
+                    sprintf(buf, "%f", _updatePlatformVersion);
+                    AString ver(buf);
+                    Utf8StringToProp(ver, prop);
+                };
+                break;
+            case ccompatibleMinimumVersion:
+                if (_isNewType) {
+                    char buf[10];
+                    sprintf(buf, "%f", _compatibleMinimumVersion);
+                    AString ver(buf);
+                    Utf8StringToProp(ver, prop);
+                };
+                break;
+            case cneedToCheckCompatibleVersion:
+                if (_isNewType) {
+                    prop = (UInt32)_needToCheckCompatibleVersion;
+                }
+                break;
+                
         }
         prop.Detach(value);
         return S_OK;

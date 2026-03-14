@@ -13,9 +13,24 @@ namespace Epk3 {
 
     NWindows::NCOM::CPropVariant GetProperty(PROPID propId);
 
+    //custom archive properties
+    // not sure how to give them names in UI yet
+    enum {
+        cIsNewType = 200,
+        cplatformVersion,
+        cSdkVersion,
+
+        //for new header ext
+        cencryptType,
+        cupdateType,
+        cupdatePlatformVersion,
+        ccompatibleMinimumVersion,
+        cneedToCheckCompatibleVersion,
+    };
+
     // --
 
-    #define SIGNATURE_SIZE 128
+    #define MAX_HDR_SIZE 1712
 
     static const Byte epk3_Magic[] = {'E', 'P', 'K', '3'};
 
@@ -37,6 +52,14 @@ namespace Epk3 {
         float  updatePlatformVersion;
         float  compatibleMinimumVersion;
         int    needToCheckCompatibleVersion;
+    };
+    #pragma pack(pop)
+
+    #pragma pack(push, 1)
+    struct PlatformVersions {
+        UInt32 pad;
+        char   platformVersion[16];
+        char   sdkVersion[16];
     };
     #pragma pack(pop)
 
