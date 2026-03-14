@@ -20,10 +20,12 @@
 #include <vector>
 #include <string>
 
-
 namespace Epk3 {
-    
+
     Z7_CLASS_IMP_CHandler_IInArchive_2(IInArchiveGetStream, IOutArchive)
+    #if FMTFIX
+    {
+    #endif
         CMyComPtr<IInStream> _inStream;
         CObjectVector<CItem> _items;
         UInt64 _headerSize;
@@ -60,7 +62,7 @@ namespace Epk3 {
             prop = us;
         }
     }
-
+    
     Z7_COM7F_IMF(CHandler::Open(IInStream* stream, const UInt64* /* maxCheckStartPosition */, IArchiveOpenCallback* /* openArchiveCallback */)) {
         DBG_LOG("[epk3] Open\n");
 
@@ -286,7 +288,13 @@ namespace Epk3 {
         return S_OK;
         COM_TRY_END
     }
-    
+ 
+    Z7_COM7F_IMF(CHandler::GetStream(UInt32 index, ISequentialInStream** stream)) {
+        DBG_LOG("[epk3] GetStream\n");
+
+        //no need, if there is no stream it will just use extract function
+        return S_OK;
+    }
 
     Z7_COM7F_IMF(CHandler::GetNumberOfItems(UInt32* numItems)) {
         DBG_LOG("[epk3] GetNumberOfItems\n");
@@ -350,19 +358,6 @@ namespace Epk3 {
         return S_OK;
         COM_TRY_END
     }
- 
-    //  !!    TODO IMPLEMENT TS SO OPEN INSIDE WORKS
-    Z7_COM7F_IMF(CHandler::GetStream(UInt32 index, ISequentialInStream** stream)) {
-        DBG_LOG("[epk3] GetStream\n");
-
-        *stream = NULL;
-        COM_TRY_BEGIN
-
-        const CItem& item = _items[index];
-        return CreateLimitedInStream(_inStream, item.offset, item.size, stream);
-
-        COM_TRY_END
-    }
     
     Z7_COM7F_IMF(CHandler::GetFileTimeType(UInt32* type)) {
         DBG_LOG("[epk3] GetFileTimeType\n");
@@ -389,16 +384,4 @@ namespace Epk3 {
         0,  // arc flags
         0   // isArc
     )
-
-    //register format
-    //REGISTER_ARC_I(
-    //    "epk3",                 // format name
-    //    "epk",                  // file extension
-    //    NULL,                   // ?ae
-    //    0xA2,                   // unique id for GUID
-    //    epk3_Magic,            // file magic signature
-    //    140,                      // offset of signature
-    //    0,                      // arc flags
-    //    0                       // isArc
-    //)
 }

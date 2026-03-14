@@ -20,10 +20,12 @@
 #include <vector>
 #include <string>
 
-
 namespace Epk2 {
     
     Z7_CLASS_IMP_CHandler_IInArchive_2(IInArchiveGetStream, IOutArchive)
+    #if FMTFIX
+    {
+    #endif
         CMyComPtr<IInStream> _inStream;
         CObjectVector<CItem> _items;
         UInt64 _headerSize;
@@ -387,17 +389,11 @@ namespace Epk2 {
         COM_TRY_END
     }
  
-    //  !!    TODO IMPLEMENT TS SO OPEN INSIDE WORKS
     Z7_COM7F_IMF(CHandler::GetStream(UInt32 index, ISequentialInStream** stream)) {
         DBG_LOG("[epk2] GetStream\n");
 
-        *stream = NULL;
-        COM_TRY_BEGIN
-
-        const CItem& item = _items[index];
-        return CreateLimitedInStream(_inStream, item.offset, item.size, stream);
-
-        COM_TRY_END
+        //no need, if there is no stream it will just use extract function
+        return S_OK;
     }
     
     Z7_COM7F_IMF(CHandler::GetFileTimeType(UInt32* type)) {
