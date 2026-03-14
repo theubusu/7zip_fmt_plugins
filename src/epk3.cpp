@@ -49,21 +49,21 @@ namespace Epk3 {
     };
 
     // specifies the avaliable properties of the archive itself
-    static const Byte kArcProps[] = {
-        kpidHeadersSize,
-        kpidComment,        //used for OTAID + ver
+    static const CStatProp kArcProps[] = {
+        { NULL, kpidHeadersSize, VT_UI4 },
+        { NULL, kpidComment, VT_BSTR },        //used for OTAID + ver
 
         //CUSTOM
-        cIsNewType,
-        cplatformVersion,
-        cSdkVersion,
-        cencryptType,
-        cupdateType,
-        cupdatePlatformVersion,
-        ccompatibleMinimumVersion,
-        cneedToCheckCompatibleVersion,
+        { "New type",                     cIsNewType,                     VT_BOOL },
+        { "Platform Version",             cplatformVersion,               VT_BSTR },
+        { "SDK Version",                  cSdkVersion,                    VT_BSTR },
+        { "encryptType",                  cencryptType,                   VT_BSTR },
+        { "updateType",                   cupdateType,                    VT_BSTR },
+        { "updatePlatformVersion",        cupdatePlatformVersion,         VT_BSTR },
+        { "compatibleMinimumVersion",     ccompatibleMinimumVersion,      VT_BSTR },
+        { "needToCheckCompatibleVersion", cneedToCheckCompatibleVersion,  VT_UI4  },
     };
-    IMP_IInArchive_ArcProps;
+    IMP_IInArchive_ArcProps_WITH_NAME;
 
     // specifies the avaliable property of the files contained within the archive
     static const Byte kProps[] = {

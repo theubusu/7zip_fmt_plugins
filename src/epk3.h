@@ -14,7 +14,6 @@ namespace Epk3 {
     NWindows::NCOM::CPropVariant GetProperty(PROPID propId);
 
     //custom archive properties
-    // not sure how to give them names in UI yet
     enum {
         cIsNewType = 200,
         cplatformVersion,
